@@ -1,0 +1,77 @@
+---
+title: "Models"
+author: "Chi Nguyen"
+date: "5/20/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(radiant)
+
+#load data
+
+data <- read_csv("prediction_merged.csv")
+#change variable type
+
+data <- mutate_at(data, .vars = vars(restatement, test, validation, res_an0, res_an1, res_an2, res_an3, leasedum, exfin, issue, big4, audit_ch, Lead_Director, Insider_Chairman, IG, NIG, foreign, mf, auop, auopic, going_concern, missing_Board, missing_DD, missing_DA, missing_TAX, missing_OB, missing_Pension, missing_AF, missing_Rating, missing_auopic, missing_goingconcern, ind1, ind2, ind3, ind4, ind5, ind6, ind7, ind8, ind9, ind10, ind11, ind12, ind13, ind14, ind15), .funs = as_factor)
+
+test <- data %>% filter(test == 1)
+
+validation <- data %>% filter(validation ==1)
+
+train <- data %>% filter(test == 0, validation ==0)
+
+build <- data %>% filter(test == 0)
+
+#get only predictors data
+build_model <- build[,6:112]
+build_model <- build_model[,-(2:5)]
+
+train_model <- train[,6:112]
+train_model <- train_model[,-(2:5)]
+
+validation_model <- validation[,6:112]
+validation_model <- validation_model[,-(2:5)]
+
+test_model <- test[,6:112]
+test_model <- test_model[,-(2:5)]
+```
+
+**Tuning should be done using the training sample (validation=0, test=0) to fit the model and the validation sample (validation=1) for performance metric.The tuning exercise should search via a grid for the parameters that maximize performance in the validation sample. Do not cross-validate within the training sample since validation should be used in the validation sample (validation=1)**
+
+**The model must be built with both training and validation sample (but not test sample) using the tuned parameters (i.e., build the model with observation test=0).**
+
+## Xgboost model
+
+```{r}
+library(xgboost)
+library(Metrics)
+library(pROC)
+
+train_mat <- Matrix::sparse.model.matrix(restatement~ ., data = build_model)
+res_mat <- ifelse(build_model$restatement=="Yes",1,0)
+test_mat <- Matrix::sparse.model.matrix(restatement~., data = test)
+
+set.seed(1234)
+xgb_mod <- xgboost(data = train_mat, label = res_mat,
+                   eta = 0.2,
+                   nround = 500,
+                   max.depth = 4,
+                   min_child_weight = 10,
+                   gamma = 8,
+                   colsample_bytree =0.8,
+                   colsample_bylevel = 0.8,
+                   colsample_bynode = 0.8,
+                   subsample = 0.8,
+                   nfold = 10,
+                   objective = "binary:logistic",verbose = 0)
+
+test$pred_xgb <- predict(xgb_mod, test_mat)
+
+roc_obj <- roc(test, prediction)
+auc(roc_obj)
+
+```
+

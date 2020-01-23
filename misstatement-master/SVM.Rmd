@@ -1,0 +1,36 @@
+---
+title: "SVM"
+output: html_document
+---
+
+**building model**
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(e1071)   
+
+
+svm <- svm(restatement ~., data= build_model, 
+          method="nu-classification", kernal="sigmoid", 
+          gamma=0.1, cost=10, probability = TRUE)
+
+pred <- predict(svm, test)
+pred <- as.data.frame(pred)
+test$pred_svm <- pred
+
+auc(test$restatement,test$pred_svm)
+```
+
+**tuning**
+
+```{r}
+hyper_grid <- expand.grid(
+  kernal  = c ("radial", "sigmoid", "polynomial"),
+  gamma = c( 0.1, 0.5, 1, 2),
+  cost = c(1,2,5, 10),
+  auc   = 0
+)
+
+
+```
+

@@ -1,0 +1,76 @@
+---
+title: "Random Forest"
+output: html_document
+---
+```{r}
+library(dplyr)
+library(caret)
+library(ranger)
+library(Metrics)
+library(pROC)
+
+#install.packages("randomForest")
+library("randomForest")
+```
+**build model with best hyperparameters**
+```{r}
+set.seed(123)
+rf <- ranger(
+      formula = restatement ~  .,   
+      data           = build_model,
+      alpha = 0.5,
+      num.trees      =300,
+      min.node.size  =3,
+      probability = T,
+      max.depth = 0,
+      importance = 'impurity')
+
+RandomForest <- predict(rf, test)
+RandomForest <- as.data.frame(RandomForest$predictions)
+RandomForest$restatement <- test$restatement
+
+auc(RandomForest$restatement,RandomForest[,2])
+
+summary(RandomForest)
+
+build$pred_rf <- RandomForest[,2]
+
+#save results
+#write.csv(build,"build.csv")
+```
+
+**Tuning**
+```{r}
+# Tuning random forest without caret
+hyper_grid <- expand.grid(
+  node_size  = as.numeric(1:10),
+  num.trees = as.numeric(seq(100,800,by=100)),
+  max.depth = c(0,1),
+  auc   = 0
+)
+
+set.seed(123)
+for(i in 1:nrow(hyper_grid)) {
+  # train model
+  rf <- ranger(
+   formula = restatement ~  .,
+    data           = train_model,
+    alpha = 0.5,
+    num.trees      = hyper_grid$num.trees[i],
+    min.node.size  = hyper_grid$node_size[i],
+    max.depth = hyper_grid$max.depth[i],
+    importance = 'impurity',
+    probability = T)
+  RandomForest <- predict(rf,data = validation_model)
+  RandomForest <- as.data.frame(RandomForest$predictions)
+  RandomForest$restatement <- validation_model$restatement
+  hyper_grid$auc[i] <-auc(RandomForest$restatement,RandomForest[,2])
+}
+
+nrow(hyper_grid) # of models
+position = which.max(hyper_grid$auc)
+head(hyper_grid[order(hyper_grid$auc,decreasing = TRUE),],5)
+
+#write.csv(hyper_grid, "tuneresult_RF.csv")
+```
+

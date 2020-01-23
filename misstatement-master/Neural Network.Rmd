@@ -1,0 +1,59 @@
+---
+title: "Neural Network"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(caret)
+library(nnet)
+#install.packages("doParallel")
+```
+
+```{r}
+buildresults <- read_csv("build.csv")
+testresults <- read_csv("test.csv")
+
+nnet.fit <- nnet(restatement ~ ., data = build_model,  size = 3, decay = 0.3, maxit = 500) 
+prediction <- predict(nnet.fit, build_model)
+prediction <- as.data.frame(prediction)
+
+prediction$restatement <- test$restatement
+
+#save result to test set
+#testresults$pred_nn <- prediction$V1
+#buildresults$pred_nn <- prediction$V1
+
+auc(prediction[,1], prediction$restatement)
+
+class(prediction$restatement)
+```
+
+#tuning
+```{r}
+#grid search
+hyper_grid <- expand.grid(
+  size  = as.numeric(1:5),
+  decay = as.numeric(seq(0.1,0.5,by=0.1)),
+  maxit = as.numeric(seq(100,500,by=100)),
+  auc   = 0
+)
+
+#tune
+
+set.seed(123)
+for(i in 1:nrow(hyper_grid)) {
+  # train model
+  nnet.fit <- nnet(restatement ~ ., data = train_model,  size = hyper_grid$size[i],
+                   decay =  hyper_grid$decay[i], maxit =  hyper_grid$maxit[i]) 
+  prediction <- predict(nnet.fit, validation_model)
+  prediction <- as.data.frame(prediction)
+  prediction$restatement <- validation_model$restatement
+  hyper_grid$auc[i] <- auc(prediction[,1], prediction$restatement)
+}
+
+position = which.max(hyper_grid$auc)
+head(hyper_grid[order(hyper_grid$auc,decreasing = TRUE),],5)
+write.csv(hyper_grid, "tuneresult_NN.csv")
+
+```
+
